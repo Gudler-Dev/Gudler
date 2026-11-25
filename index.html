@@ -615,7 +615,19 @@ html.calm .sp-start::before{animation:none}
 .dc-page td,.dc-page th{border:1px solid #999;padding:6px 8px;min-width:40px}
 .dc-page hr{border:0;border-top:1px solid #999;margin:1em 0}
 .dc-foot{display:flex;justify-content:space-between;gap:12px;margin-top:10px;color:var(--mute);font:500 .74rem/1 var(--f-mono)}
-@media print{body *{visibility:hidden!important}.dc-desk,.dc-desk *{visibility:visible!important}.dc-desk{position:absolute;left:0;top:0;width:100%;background:#fff;padding:0}.dc-page{box-shadow:none;min-height:0}}
+#pb{position:fixed;inset:0;z-index:99999;display:flex;background:#2a2e2d;color:#e8eeec;font:14px/1.4 system-ui,sans-serif}
+#pb[hidden]{display:none}
+.pb-panel{width:320px;flex:none;background:#101514;border-right:1px solid #243;padding:20px;overflow:auto}
+.pb-panel h2{margin:0 0 4px;color:#3fe9a0;font-size:20px}.pb-sub{opacity:.6;font-size:13px;margin-bottom:14px}
+.pb-panel label{display:block;font-size:12px;opacity:.75;margin:12px 0 4px;text-transform:uppercase;letter-spacing:.05em}
+.pb-panel select{width:100%;padding:10px;border-radius:8px;background:#060909;color:#fff;border:1px solid #2a4}
+.pb-panel button{display:block;width:100%;margin-top:12px;padding:12px;border-radius:8px;border:1px solid #fff5;background:#0a0d0d;color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:.06em;cursor:pointer}
+.pb-panel button.pb-go{border-color:#3fe9a0;color:#3fe9a0;background:#12261d}
+#pb-msg{margin-top:16px;font-size:13px;min-height:20px}.pb-help{margin-top:14px;font-size:12px;opacity:.55}
+.pb-stage{flex:1;overflow:auto;padding:28px;display:flex;justify-content:center;align-items:flex-start}
+#pb-paper{background:#fff;color:#000;box-shadow:0 4px 30px #0009;font:12pt/1.5 Arial,sans-serif;box-sizing:border-box;max-width:none}
+#pb-paper table{border-collapse:collapse}#pb-paper td{border:1px solid #999;padding:6px}#pb-paper img{max-width:100%}
+@media print{html.pb-print body>*:not(#pb){display:none!important}html.pb-print #pb{position:static;display:block;background:#fff}html.pb-print .pb-panel{display:none!important}html.pb-print .pb-stage{padding:0;overflow:visible;display:block}html.pb-print #pb-paper{box-shadow:none;width:auto!important;min-height:0!important;padding:0!important}}
 .acct{order:3;display:inline-flex;align-items:center;gap:8px;text-decoration:none;color:var(--text);font:600 .78rem/1 var(--f-mono);letter-spacing:.06em;border:1px solid var(--line);border-radius:99px;min-height:40px;padding:0 14px;white-space:nowrap;max-width:180px}
 .acct:hover{border-color:var(--green);color:var(--green)}.acct .an{overflow:hidden;text-overflow:ellipsis}
 .acct .av{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:#06100b;font:800 .75rem/1 var(--f-display);flex:none}
@@ -959,6 +971,106 @@ body.fs-lock{overflow:hidden}
 </div></footer>
 <div id="toast" role="status" aria-live="polite"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>(function(){
+var URL_='https://skhlptvlnqogtyzulxdn.supabase.co',KEY='sb_publishable_MAzs9pG9jYI7-oeCAXRzeA_XBisDwRL';
+var sb=null;try{if(window.supabase&&window.supabase.createClient)sb=window.supabase.createClient(URL_,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}})}catch(e){sb=null}
+window.__sb=sb;
+var me=null,admin=false,ready=null;
+function rid(){var a=new Uint8Array(10),s='',i;try{crypto.getRandomValues(a)}catch(e){for(i=0;i<10;i++)a[i]=Math.floor(Math.random()*256)}for(i=0;i<10;i++)s+=('0'+a[i].toString(16)).slice(-2);return s}
+function boot(){
+  if(ready)return ready;
+  ready=sb?sb.auth.getSession().then(function(r){
+    var s=r&&r.data&&r.data.session;me=s?s.user:null;
+    if(!me)return;
+    return sb.rpc('is_admin').then(function(x){admin=!!(x&&x.data)},function(){})
+  }).catch(function(){}):Promise.resolve();
+  return ready;
+}
+function chk(r){if(r&&r.error){var e=new Error(r.error.message||'error');e.code=r.error.code||'error';throw e}return r}
+function num(v){return typeof v==='number'&&isFinite(v)?Math.floor(v):0}
+function snapDoc(row){return {id:row?row.id:'',exists:!!row,data:function(){return row?row.data:undefined}}}
+function snapList(rows){return {docs:rows.map(function(r){return {id:r.id,data:function(){return r.data}}})}}
+var W=[];function bump(r){W.forEach(function(f){f()});return r}
+function watch(col,val,fetch,cb,err){
+  var dead=false,timer=0,busy=false,again=false,ch=null;
+  function run(){
+    if(dead)return;if(busy){again=true;return}busy=true;
+    fetch().then(function(v){busy=false;if(!dead)cb(v);if(again){again=false;run()}},function(e){busy=false;if(!dead&&err)try{err(e)}catch(x){}});
+  }
+  function sched(){clearTimeout(timer);timer=setTimeout(run,150)}
+  try{ch=sb.channel('w'+rid()).on('postgres_changes',{event:'*',schema:'public',table:'docs',filter:col+'=eq.'+val},sched).subscribe()}catch(e){ch=null}
+  W.push(sched);
+  var poll=setInterval(function(){if(!document.hidden)run()},20000);
+  run();
+  return function(){dead=true;var ix=W.indexOf(sched);if(ix>=0)W.splice(ix,1);clearInterval(poll);clearTimeout(timer);try{if(ch)sb.removeChannel(ch)}catch(e){}};
+}
+function DocRef(path){
+  var i=path.lastIndexOf('/'),coll=path.slice(0,i),id=path.slice(i+1),isAdm=(path==='roles/admins');
+  function fetchOne(){
+    if(isAdm)return sb.rpc('list_admins').then(function(r){chk(r);return {id:'admins',data:{ids:r.data||{}}}});
+    return sb.from('docs').select('id,data').eq('path',path).maybeSingle().then(function(r){chk(r);return r.data});
+  }
+  return {
+    get:function(){return fetchOne().then(snapDoc)},
+    set:function(d){
+      if(isAdm)return sb.rpc('set_admins',{p_ids:(d&&d.ids)||{}}).then(chk).then(bump);
+      return sb.from('docs').upsert({path:path,coll:coll,id:id,data:d||{},t:num(d&&d.t)}).then(chk).then(bump);
+    },
+    update:function(p){return sb.rpc('doc_merge',{p_path:path,p_patch:p||{}}).then(chk).then(bump)},
+    delete:function(){return sb.from('docs').delete().eq('path',path).then(chk).then(bump)},
+    onSnapshot:function(cb,err){return watch('path',path,function(){return fetchOne()},function(row){cb(snapDoc(row))},err)}
+  };
+}
+function Q(coll,o){
+  o=o||{};
+  function fetch(){
+    var q=sb.from('docs').select('id,data,t').eq('coll',coll);
+    var f=o.ord||'t',desc=(o.dir==='desc');
+    if(f==='t')q=q.order('t',{ascending:!desc}).limit(o.lim||500);else q=q.limit(500);
+    return q.then(function(r){
+      chk(r);var rows=r.data||[];
+      if(f!=='t'){rows.sort(function(a,b){var x=a.data&&a.data[f],y=b.data&&b.data[f];return (x>y?1:x<y?-1:0)*(desc?-1:1)});if(o.lim)rows=rows.slice(0,o.lim)}
+      return rows;
+    });
+  }
+  return {
+    orderBy:function(f,d){return Q(coll,{ord:f,dir:d||'asc',lim:o.lim})},
+    limit:function(n){return Q(coll,{ord:o.ord,dir:o.dir,lim:n})},
+    get:function(){return fetch().then(snapList)},
+    add:function(d){var id=rid();return sb.from('docs').insert({path:coll+'/'+id,coll:coll,id:id,data:d||{},t:num(d&&d.t)}).then(chk).then(bump).then(function(){return {id:id}})},
+    doc:function(id){return DocRef(coll+'/'+id)},
+    onSnapshot:function(cb,err){return watch('coll',coll,fetch,function(rows){cb(snapList(rows))},err)}
+  };
+}
+var db={doc:function(p){return DocRef(p)},collection:function(p){return Q(p)}};
+var user={
+  isOwner:function(){return !!admin},
+  canEdit:function(){return !!admin},
+  can:function(){return !!admin},
+  me:function(){return {id:me?me.id:null}},
+  id:function(){return me?me.id:null},
+  profiles:function(ids){
+    ids=(ids||[]).filter(Boolean);if(!ids.length||!me)return Promise.resolve({});
+    return sb.from('profiles').select('id,name').in('id',ids).then(function(r){var o={};((r&&r.data)||[]).forEach(function(p){o[p.id]={name:p.name||''}});return o});
+  },
+  search:function(q){return sb.rpc('search_profiles',{q:String(q||'')}).then(function(r){return ((r&&r.data)||[]).map(function(p){return {id:p.id,name:p.name||''}})})}
+};
+var downloads={save:function(o){
+  return new Promise(function(res,rej){
+    try{var u=URL.createObjectURL(o.data),a=document.createElement('a');a.href=u;a.download=o.filename||'file';document.body.appendChild(a);a.click();
+      setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(u)},1500);res()}catch(e){rej(e)}
+  });
+}};
+window.claude={use:function(n){
+  if(n==='downloads')return Promise.resolve(downloads);
+  if(!sb)return Promise.resolve(null);
+  if(n==='user')return boot().then(function(){return user});
+  if(n==='db')return boot().then(function(){return db});
+  return Promise.resolve(null);
+}};
+})();
+</script>
 <script>
 (function(){
 'use strict';
@@ -1348,7 +1460,7 @@ function docsView(){
   function b(cmd,label,title,extra){return '<button type="button" class="dc-b" data-dc="'+cmd+'" title="'+title+'" aria-label="'+title+'"'+(extra||'')+'>'+label+'</button>'}
   return '<div class="wrap dc"><div class="dc-top"><div class="dc-name"><span class="dc-ico" aria-hidden="true">&#128196;</span><input id="dc-title" type="text" maxlength="120" value="'+esc(DOC.cur.title)+'" aria-label="Document title"><span class="dc-st" id="dc-st" role="status">Saved</span></div>'
    +'<div class="dc-acts"><select id="dc-list" aria-label="Your documents">'+DOC.list.map(function(d){return '<option value="'+d.id+'"'+(d.id===DOC.cur.id?' selected':'')+'>'+esc(d.title||'Untitled document')+'</option>'}).join('')+'</select>'
-   +'<button type="button" class="btn" data-dc="new">New</button><button type="button" class="btn" data-dc="del">Delete</button><button type="button" class="btn" data-dc="print">Print</button><button type="button" class="btn btn-g" data-dc="dl:html">Download</button><button type="button" class="btn" data-dc="dl:txt">Text</button></div></div>'
+   +'<button type="button" class="btn" data-dc="new">New</button><button type="button" class="btn" data-dc="del">Delete</button><button type="button" class="btn btn-g" data-dc="save">Save</button><button type="button" class="btn" data-dc="print">Print</button><button type="button" class="btn btn-g" data-dc="dl:html">Download</button><button type="button" class="btn" data-dc="dl:txt">Text</button></div></div>'
    +'<div class="dc-bar" role="toolbar" aria-label="Formatting">'
    +b('undo','&#8630;','Undo')+b('redo','&#8631;','Redo')+'<span class="dc-sep"></span>'
    +'<select id="dc-style" aria-label="Text style"><option value="p">Normal text</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option><option value="blockquote">Quote</option><option value="pre">Code</option></select>'
@@ -1410,6 +1522,61 @@ function docTable(){
   var h='<table class="dc-t"><tbody>';for(var r=0;r<3;r++){h+='<tr>';for(var c=0;c<3;c++)h+='<td><br></td>';h+='</tr>'}
   docExec('insertHTML',h+'</tbody></table><p><br></p>');
 }
+var PB={size:'letter',ori:'portrait',mar:'1'};
+var PB_SZ={letter:[8.5,11],a4:[8.27,11.69],legal:[8.5,14]};
+function pbMsg(t){var m=document.getElementById('pb-msg');if(m)m.textContent=t}
+function pbEl(){
+  var el=document.getElementById('pb');if(el)return el;
+  el=document.createElement('div');el.id='pb';el.hidden=true;el.setAttribute('role','dialog');el.setAttribute('aria-label','Print booth');
+  el.innerHTML='<div class="pb-panel"><h2>Print booth</h2><div class="pb-sub" id="pb-name"></div>'
+   +'<label for="pb-size">Paper</label><select id="pb-size"><option value="letter">Letter</option><option value="a4">A4</option><option value="legal">Legal</option></select>'
+   +'<label for="pb-ori">Orientation</label><select id="pb-ori"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select>'
+   +'<label for="pb-mar">Margins</label><select id="pb-mar"><option value="0.5">Narrow (0.5 in)</option><option value="1">Normal (1 in)</option><option value="1.5">Wide (1.5 in)</option></select>'
+   +'<button type="button" class="pb-go" id="pb-go">Print</button><button type="button" id="pb-save">Save printable file</button><button type="button" id="pb-close">Close</button>'
+   +'<div id="pb-msg" role="status"></div><div class="pb-help">Press Print and pick your printer in the window that opens. A printer that is connected to this computer and turned on will be in that list. Copies and double-sided are set there too.</div></div>'
+   +'<div class="pb-stage"><div id="pb-paper"></div></div>';
+  document.body.appendChild(el);
+  ['size','ori','mar'].forEach(function(k){document.getElementById('pb-'+k).addEventListener('change',function(){PB[k==='size'?'size':k==='ori'?'ori':'mar']=this.value;pbLayout()})});
+  document.getElementById('pb-go').addEventListener('click',pbPrint);
+  document.getElementById('pb-save').addEventListener('click',pbSave);
+  document.getElementById('pb-close').addEventListener('click',pbClose);
+  document.addEventListener('keydown',function(ev){if(ev.key==='Escape'&&!el.hidden)pbClose()});
+  return el;
+}
+function pbDims(){var d=PB_SZ[PB.size]||PB_SZ.letter,w=d[0],h=d[1];return PB.ori==='landscape'?[h,w]:[w,h]}
+function pbLayout(){
+  var d=pbDims(),pp=document.getElementById('pb-paper');if(!pp)return;
+  pp.style.width=(d[0]*96)+'px';pp.style.minHeight=(d[1]*96)+'px';pp.style.padding=(PB.mar*96)+'px';
+  var st=document.getElementById('pb-pg');if(!st){st=document.createElement('style');st.id='pb-pg';document.head.appendChild(st)}
+  st.textContent='@page{size:'+d[0]+'in '+d[1]+'in;margin:'+PB.mar+'in}';
+  /* page margin is applied by @page when printing, so the paper padding is for preview only */
+}
+function pbOpen(){
+  var e=docEd();if(!e)return;docSave(true);var el=pbEl();
+  document.getElementById('pb-name').textContent=DOC.cur.title||'Untitled document';
+  document.getElementById('pb-paper').innerHTML=docSan(e.innerHTML);
+  document.getElementById('pb-size').value=PB.size;document.getElementById('pb-ori').value=PB.ori;document.getElementById('pb-mar').value=PB.mar;
+  pbLayout();pbMsg('');el.hidden=false;document.getElementById('pb-go').focus();
+}
+function pbClose(){var el=document.getElementById('pb');if(el)el.hidden=true;document.documentElement.classList.remove('pb-print')}
+function pbPrint(){
+  var cls=document.documentElement.classList,fired=false;
+  function bp(){fired=true}
+  function ap(){cls.remove('pb-print');window.removeEventListener('beforeprint',bp);window.removeEventListener('afterprint',ap);pbMsg('Sent to the print window. If nothing printed, check your printer is on and connected.')}
+  window.addEventListener('beforeprint',bp);window.addEventListener('afterprint',ap);
+  cls.add('pb-print');pbMsg('Opening the print window…');
+  try{window.print()}catch(x){}
+  setTimeout(function(){if(!fired){cls.remove('pb-print');window.removeEventListener('beforeprint',bp);window.removeEventListener('afterprint',ap);pbMsg('This window cannot open the print dialog here. Press "Save printable file", open the saved file, and the print window opens by itself. You can also press Ctrl+P (Cmd+P on Mac).')}},900);
+}
+function pbSave(){
+  var d=pbDims(),name=(DOC.cur.title||'document').replace(/[^\w\- ]+/g,'').trim()||'document';
+  var html='<!doctype html><html><head><meta charset="utf-8"><title>'+esc(DOC.cur.title||'Document')+'</title><style>@page{size:'+d[0]+'in '+d[1]+'in;margin:'+PB.mar+'in}body{font:12pt/1.5 Arial,sans-serif;margin:0;padding:'+PB.mar+'in}table{border-collapse:collapse}td{border:1px solid #999;padding:6px}img{max-width:100%}.np{position:fixed;top:10px;right:10px;padding:10px 16px;font:bold 14px system-ui;cursor:pointer}@media print{.np{display:none}body{padding:0}}</style></head><body><button class="np" onclick="print()">Print</button>'+document.getElementById('pb-paper').innerHTML+'<script>addEventListener("load",function(){setTimeout(function(){print()},400)})<\/script></body></html>';
+  if(!window.claude||!window.claude.use){pbMsg('Saving a file is not available here.');return}
+  window.claude.use('downloads').then(function(dl){
+    if(!dl){pbMsg('Saving a file is not available here.');return}
+    return dl.save({filename:name+'-print.html',data:new Blob([html],{type:'text/html'})}).then(function(){pbMsg('Saved. Open the file and the print window opens by itself.')}).catch(function(er){pbMsg((er&&er.code==='declined')?'Save cancelled.':'Could not save the file.')});
+  });
+}
 function docDownload(kind){
   var e=docEd();if(!e)return;docSave(true);
   var name=(DOC.cur.title||'document').replace(/[^\w\- ]+/g,'').trim()||'document';
@@ -1439,7 +1606,8 @@ function docAct(a){
     if(!DOC.list.length)DOC.list.push({id:'d'+Date.now(),title:'Untitled document',html:'<p><br></p>',t:Date.now()});
     DOC.cur=DOC.list[0];docPersist();render(true)
   }
-  else if(k==='print'){docSave(true);try{window.print()}catch(x){var st=document.getElementById('dc-st');if(st)st.textContent='Printing is not available here'}}
+  else if(k==='save'){docSave(true);var s3=document.getElementById('dc-st'),ok=docPersist();var m=ok?'Saved at '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'Not saved (browser storage is off)';if(s3)s3.textContent=m;toast(ok?'Saved':'Could not save. Browser storage is off.')}
+  else if(k==='print'){pbOpen()}
   else if(k==='dl')docDownload(p[1]);
   else if(k==='link'){var sel=window.getSelection();DOC.range=(sel.rangeCount&&e.contains(sel.anchorNode))?sel.getRangeAt(0).cloneRange():null;var f=document.getElementById('dc-link');f.hidden=false;document.getElementById('dc-url').focus()}
   else if(k==='linkx'){document.getElementById('dc-link').hidden=true;e.focus()}
@@ -1454,7 +1622,7 @@ function docInit(){
   if(!e.dataset.bound){e.dataset.bound='1';
     e.addEventListener('input',function(){docSave();docCount()});
     e.addEventListener('keyup',docUi);e.addEventListener('mouseup',docUi);
-    e.addEventListener('keydown',function(ev){if((ev.ctrlKey||ev.metaKey)&&ev.key.toLowerCase()==='k'){ev.preventDefault();docAct('link')}});
+    e.addEventListener('keydown',function(ev){if((ev.ctrlKey||ev.metaKey)&&ev.key.toLowerCase()==='k'){ev.preventDefault();docAct('link')}else if((ev.ctrlKey||ev.metaKey)&&ev.key.toLowerCase()==='s'){ev.preventDefault();docAct('save')}});
     e.addEventListener('paste',function(ev){var cd=ev.clipboardData;if(!cd)return;ev.preventDefault();var h=cd.getData('text/html'),t=cd.getData('text/plain');
       if(h)document.execCommand('insertHTML',false,docSan(h));else document.execCommand('insertText',false,t);docSave()});
     e.addEventListener('drop',function(ev){ev.preventDefault()});
@@ -1490,7 +1658,7 @@ function contact(){
   var form=can?'<form id="contact-form" novalidate><div class="field"><label for="c-msg">Message</label><textarea id="c-msg" maxlength="1000" placeholder="Which world are you in?"'+(e.message?' aria-invalid="true" aria-describedby="c-msg-err"':'')+'>'+esc(c.message)+'</textarea>'+(e.message?'<div class="err" id="c-msg-err">'+esc(e.message)+'</div>':'')+'</div>'
    +capHTML('contact',e.cap)
    +'<div><button class="btn btn-g" type="submit"'+(c.status==='sending'?' disabled':'')+'>'+(c.status==='sending'?'Sending...':'Send')+'</button></div></form>'
-   :'<div class="empty"><h3>Sign in to send a message</h3><p>Open this page signed in to claude.ai to write to G.E.S. and read the reply.</p></div>';
+   :'<div class="empty"><h3>Sign in to send a message</h3><p>Create an account or sign in to write to G.E.S. and read the reply.</p><a class="btn btn-g" href="#account">Sign in</a></div>';
   return '<div class="wrap"><div class="page-head"><span class="eyebrow">Contact Us</span><h1>Say something to G.E.S.</h1><p class="lede">Write a message. G.E.S. answers right here on this page.</p></div>'
    +'<div class="contact"><div style="display:flex;flex-direction:column;gap:22px;min-width:0">'+sent+'<div id="ct-thread"></div>'+form+'</div></div></div>';
 }
@@ -2226,7 +2394,7 @@ function roleName(){return ROLE.owner?'owner':isAdmin()?'admin':(ROLE.id&&ROLE.d
 window.__gesRole=function(){return roleName()};window.__gesReady=function(){return ROLE.ready};
 function featOn(k){return ROLE.cfg.features[k]!==false}
 function roleBox(){
-  var rn=roleName(),d={owner:'You own this site, so you are always an admin.',admin:'You can post, change settings and switch sections on or off.',human:'You are signed in. Admins can promote you.',guest:'You are not signed in. Sign in to claude.ai to read News and join as a human.'};
+  var rn=roleName(),d={owner:'You own this site, so you are always an admin.',admin:'You can post, change settings and switch sections on or off.',human:'You are signed in. Admins can promote you.',guest:'You are not signed in. Sign in to your account to read News and join as a human.'};
   return '<p class="rolebox">Your role: <b class="rb big">'+rn+'</b> '+esc(d[rn])+'</p>';
 }
 function applyFeatures(){
@@ -2289,7 +2457,7 @@ function chatChanged(){
 }
 function chatView(){
   var h='<div class="wrap">'+crumbs([['Home','home'],['Hangout','']])+'<div class="page-head"><span class="eyebrow">Hangout</span><h1>Chat with other visitors</h1><p class="lede">Say hi to people who are on the site right now. Be kind. Admins can remove messages.</p></div>';
-  if(!ROLE.db||!ROLE.id)return h+'<div class="empty"><h3>Sign in to chat</h3><p>Hangout is open to people signed in to claude.ai. Open this page signed in to join.</p></div></div>';
+  if(!ROLE.db||!ROLE.id)return h+'<div class="empty"><h3>Sign in to chat</h3><p>Hangout is open to people with an account. Sign in to join.</p><a class="btn btn-g" href="#account">Sign in</a></div></div>';
   return h+'<div class="ch-box"><div class="ch-log" id="ch-log" role="log" aria-live="polite" aria-label="Chat messages"></div><form class="ch-form" id="ch-form" novalidate><input id="ch-in" type="text" maxlength="300" autocomplete="off" placeholder="Write a message" aria-label="Write a message"><button class="btn btn-g" type="submit">Send</button></form></div></div>';
 }
 function chatFill(force){
@@ -2433,7 +2601,7 @@ document.addEventListener('change',function(ev){
 });
 
 /* ---------- FunCast ---------- */
-var ART_URL='https://claude.ai/artifact/FY7hbgogKMH7WrG6c3YEgo';
+var ART_URL=location.origin+location.pathname;
 var FC={tab:'eps',es:'',ss:''};
 function fcShow(id){return ROLE.pods.filter(function(x){return x.id===id})[0]}
 function fcEp(id){return ROLE.eps.filter(function(x){return x.id===id})[0]}
@@ -2454,7 +2622,7 @@ function funcastView(n,id){
   else{
     var eps=fcEps(),shows=ROLE.pods.filter(vis);
     m='<section class="fc-card fc-hero"><h1 class="fc-h">FunCast</h1><p class="fc-sub">The Funnest In Casting</p><hr class="fc-hr"><h2 class="fc-w">Welcome to FunCast.</h2><p class="fc-p">Check out our YouTube channel, FunCast, or G.E.S.</p></section>'
-     +'<section class="fc-sec"><h2 class="fc-sh">Latest episodes</h2>'+(!ROLE.db?'<p class="fc-p fc-mute">Sign in to claude.ai to listen to episodes.</p>':(eps.length?'<div class="fc-grid">'+eps.map(fcEpCard).join('')+'</div>':'<p class="fc-p fc-mute">No episodes yet. The team is recording!</p>'))+'</section>'
+     +'<section class="fc-sec"><h2 class="fc-sh">Latest episodes</h2>'+(!ROLE.db?'<p class="fc-p fc-mute">Episodes will show up here soon.</p>':(eps.length?'<div class="fc-grid">'+eps.map(fcEpCard).join('')+'</div>':'<p class="fc-p fc-mute">No episodes yet. The team is recording!</p>'))+'</section>'
      +(shows.length?'<section class="fc-sec"><h2 class="fc-sh">Shows</h2><div class="fc-grid">'+shows.map(fcShowCard).join('')+'</div></section>':'');
   }
   return '<div class="fc">'+fcTop(n)+'<main class="fc-main">'+m+'</main><footer class="fc-foot">FunCast &copy; 2026</footer></div>';
@@ -2572,13 +2740,13 @@ document.addEventListener('click',function(ev){
     if(navigator.share){navigator.share({title:it.title,text:txt,url:ART_URL}).catch(function(){})}else fcCopy(txt);
   }
 });
-function rlErr(e){toast((e&&e.code==='invalid_argument')?'You do not have permission to do that.':'Could not save. Try again.')}
+function rlErr(e){toast((e&&(e.code==='invalid_argument'||e.code==='42501'||e.code==='PGRST301'))?'You do not have permission to do that.':'Could not save. Try again.')}
 function safeLink(u){u=(u||'').trim();if(!u)return '';if(!/^https?:\/\//i.test(u))u='https://'+u;return u}
 function fmtD(t){try{return new Date(t).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}catch(e){return ''}}
 function nameOf(id){return ROLE.names[id]||(id===ROLE.id?'You':'Someone')}
 function newsView(){
   var ad=isAdmin(),h='<div class="wrap">'+crumbs([['Home','home'],['News','']])+'<div class="page-head"><span class="eyebrow">News</span><h1>Latest from G.E.S.</h1><p class="lede">Posts from the people who run the studio.</p>'+(ad?'<p><a class="btn btn-g" href="#admin" data-rl="tab:news">Write or edit posts in the Admin panel</a></p>':'')+'</div>';
-  if(!ROLE.db){return h+'<div class="empty"><h3>Sign in to read the news</h3><p>News is shared with signed-in people. Open this page signed in to claude.ai to see posts.</p></div></div>'}
+  if(!ROLE.db){return h+'<div class="empty"><h3>Sign in to read the news</h3><p>News could not load. Check your connection and reload.</p></div></div>'}
   var pl=ROLE.posts.filter(vis);
   if(!pl.length)return h+'<div class="empty"><h3>No posts yet</h3><p>Check back soon.</p></div></div>';
   return h+'<div class="nw-list">'+pl.map(function(x){
@@ -2614,7 +2782,7 @@ function personRow(id,nm){
 }
 function adminView(){
   var h='<div class="wrap">'+crumbs([['Home','home'],['Admin','']]);
-  if(!isAdmin())return h+'<div class="empty" style="margin-top:30px"><h3>Admins only</h3><p>This page is for the people who run the site. The site sees you as: <b>'+roleName()+'</b>'+(ROLE.db?'':' (not signed in to claude.ai)')+'.</p><a class="btn btn-g" href="#home">Back to Home</a></div></div>';
+  if(!isAdmin())return h+'<div class="empty" style="margin-top:30px"><h3>Admins only</h3><p>This page is for the people who run the site. The site sees you as: <b>'+roleName()+'</b>'+(ROLE.db?'':' (not signed in)')+'.</p><a class="btn btn-g" href="#home">Back to Home</a></div></div>';
   var bh='';try{bh=adBuild()}catch(e){bh='<div class="pn-scroll"><p class="rolebox">Admin panel error: '+esc(String(e&&e.message||e))+'</p><a class="btn" href="#home">Back to Home</a></div>'}
   return '<div class="wrap pn-host" id="pn-host" data-h="">'+bh+'</div>';
 }
@@ -2770,30 +2938,20 @@ document.addEventListener('input',function(ev){
     ROLE.q=hits;ul.innerHTML=hits.length?hits.map(function(h){ROLE.names[h.id]=h.name||ROLE.names[h.id];return personRow(h.id,h.name||'Someone')}).join(''):'<li class="ak-note">No one found.</li>';
   },function(){ul.innerHTML='<li class="ak-note">Search is not available right now.</li>'});
 });
-/* ---------- user accounts (stored in this browser only) ---------- */
-var SESS='';try{SESS=localStorage.getItem('ges-session')||''}catch(e){}
+/* ---------- user accounts (Supabase) ---------- */
+function sbTok(){try{var k=Object.keys(localStorage).filter(function(x){return /^sb-.*-auth-token$/.test(x)})[0];return k?JSON.parse(localStorage.getItem(k)):null}catch(e){return null}}
+var SESS=(function(){var t=sbTok();return (t&&t.user&&t.user.id)?t.user.id:''})();
 function ukey(b){return SESS?b+':'+SESS:b}
-function getUsers(){try{var u=JSON.parse(localStorage.getItem('ges-users')||'{}');return (u&&typeof u==='object')?u:{}}catch(e){return {}}}
-function putUsers(u){try{localStorage.setItem('ges-users',JSON.stringify(u));return true}catch(e){return false}}
-function curUser(){var u=getUsers()[SESS];return u||null}
-function b64(buf){var a=new Uint8Array(buf),t='',i;for(i=0;i<a.length;i++)t+=String.fromCharCode(a[i]);return btoa(t)}
-function hashPw(pw,salt){
-  if(!window.crypto||!crypto.subtle)return Promise.reject(new Error('nocrypto'));
-  var enc=new TextEncoder();
-  return crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveBits']).then(function(k){
-    return crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:120000,hash:'SHA-256'},k,256)}).then(b64);
+function ucolor(){var c='';try{c=localStorage.getItem('ges-color:'+SESS)||''}catch(e){}return c||'#35f0a0'}
+function curUser(){
+  var t=sbTok();if(!t||!t.user||!t.user.id)return null;
+  var m=t.user.user_metadata||{},em=t.user.email||'',nm=String(m.name||em.split('@')[0]||'Member');
+  return {name:nm,display:nm,email:em,created:Date.parse(t.user.created_at)||Date.now(),color:ucolor()};
 }
-function newSalt(){var a=new Uint8Array(16);crypto.getRandomValues(a);return b64(a)}
 function loadUserSettings(){
   var raw=null;try{raw=localStorage.getItem(ukey('ges-settings'))}catch(e){}
   if(raw){try{var o=JSON.parse(raw);if(o&&typeof o==='object')Object.keys(SET_DEF).forEach(function(k){if(o[k]!==undefined)settings[k]=o[k]})}catch(e){}}
   settings.work=false;settings.kids=false;
-}
-function setSession(name){
-  SESS=name||'';try{if(SESS)localStorage.setItem('ges-session',SESS);else localStorage.removeItem('ges-session')}catch(e){}
-  DOC.list=null;DOC.cur=null;
-  if(SESS){loadUserSettings();saveSettings()}
-  applySettings();
 }
 function acctChip(){
   var a=document.getElementById('acct');if(!a)return;var u=curUser();
@@ -2808,83 +2966,85 @@ function accountView(){
   var u=curUser(),h='<div class="wrap">'+crumbs([['Home','home'],['Account','']])+roleBox();
   if(u){
     var nd=0;try{nd=(JSON.parse(localStorage.getItem(ukey('ges-docs'))||'[]')||[]).length}catch(e){}
-    h+='<div class="page-head"><span class="eyebrow">Account</span><h1>Hi, '+esc(u.display||u.name)+'</h1><p class="lede">Your documents and settings are saved under this account in this browser.</p></div><div class="ac-grid">'
-     +'<section class="ac-card"><div class="ac-av" style="background:'+esc(u.color||'#35f0a0')+'">'+esc((u.display||u.name).charAt(0).toUpperCase())+'</div><p><b>@'+esc(u.name)+'</b></p><p class="ak-note">Member since '+esc(new Date(u.created).toLocaleDateString())+'<br>'+nd+' saved document'+(nd===1?'':'s')+'</p><button class="btn" type="button" data-ac="out">Sign out</button></section>'
-     +'<section class="ac-card"><h2>Profile</h2><form id="ac-prof" class="ac-form" novalidate><label>Display name<input id="ac-dn" type="text" maxlength="30" value="'+esc(u.display||'')+'"></label><label>Email<input id="ac-pe" type="email" maxlength="120" value="'+esc(u.email||'')+'"></label><div class="ac-cols" role="group" aria-label="Avatar color">'+AV_COLORS.map(function(c){return '<button type="button" class="ac-c" data-ac="col:'+c+'" style="background:'+c+'" aria-label="Color '+c+'" aria-pressed="'+((u.color||AV_COLORS[0])===c)+'"></button>'}).join('')+'</div><button class="btn btn-g" type="submit">Save profile</button></form>'
-     +'<h2>Change password</h2><form id="ac-pw" class="ac-form" novalidate><label>Current password<input id="ac-old" type="password" autocomplete="current-password"></label><label>New password<input id="ac-new" type="password" autocomplete="new-password"></label><button class="btn" type="submit">Change password</button></form>'
-     +'<p class="err" id="ac-msg" role="alert">'+esc(AC.msg)+'</p><h2>Delete account</h2><p class="ak-note">This removes the account, its documents and its settings from this browser.</p><button class="btn" type="button" data-ac="del">Delete account</button></section></div>';
+    h+='<div class="page-head"><span class="eyebrow">Account</span><h1>Hi, '+esc(u.display||u.name)+'</h1><p class="lede">Your account is saved online, so you can sign in from any device. Your documents are saved in this browser.</p></div><div class="ac-grid">'
+     +'<section class="ac-card"><div class="ac-av" style="background:'+esc(u.color||'#35f0a0')+'">'+esc((u.display||u.name).charAt(0).toUpperCase())+'</div><p><b>'+esc(u.display||u.name)+'</b></p><p class="ak-note">Member since '+esc(new Date(u.created).toLocaleDateString())+'<br>'+nd+' saved document'+(nd===1?'':'s')+' in this browser</p><button class="btn" type="button" data-ac="out">Sign out</button></section>'
+     +'<section class="ac-card"><h2>Profile</h2><form id="ac-prof" class="ac-form" novalidate><label>Display name<input id="ac-dn" type="text" maxlength="30" value="'+esc(u.display||'')+'"></label><p class="ak-note">Signed in as '+esc(u.email)+'</p><div class="ac-cols" role="group" aria-label="Avatar color">'+AV_COLORS.map(function(c){return '<button type="button" class="ac-col" data-ac="col:'+c+'" style="background:'+c+'" aria-label="Color '+c+'" aria-pressed="'+(u.color===c)+'"></button>'}).join('')+'</div><button class="btn btn-g" type="submit">Save profile</button></form>'
+     +'<h2>Change password</h2><form id="ac-pw" class="ac-form" novalidate><label>New password<input id="ac-new" type="password" autocomplete="new-password"></label><button class="btn" type="submit">Change password</button></form>'
+     +'<p class="err" id="ac-msg" role="alert">'+esc(AC.msg)+'</p><h2>Delete account</h2><p class="ak-note">This removes your account and your messages from the site for good.</p><button class="btn" type="button" data-ac="del">Delete account</button></section></div>';
   }else{
     var up=AC.mode==='up';
-    h+='<div class="page-head"><span class="eyebrow">Account</span><h1>'+(up?'Create your account':'Welcome back')+'</h1><p class="lede">Sign in to keep your documents and settings under your name. You can use the whole site without one.</p></div>'
+    h+='<div class="page-head"><span class="eyebrow">Account</span><h1>'+(up?'Create your account':'Welcome back')+'</h1><p class="lede">Sign in to chat, write to G.E.S. and keep your settings. You can use the whole site without one.</p></div>'
      +'<section class="ac-card ac-one"><div class="chips" role="group" aria-label="Sign in or sign up"><button type="button" class="chip" data-ac="mode:in" aria-pressed="'+!up+'">Sign in</button><button type="button" class="chip" data-ac="mode:up" aria-pressed="'+up+'">Create account</button></div>'
-     +'<form id="ac-form" class="ac-form" novalidate><label>Username<input id="ac-u" type="text" autocomplete="username" maxlength="20" autocapitalize="none" spellcheck="false"></label><label>Email<input id="ac-e" type="email" autocomplete="email" maxlength="120" placeholder="you@example.com"></label>'
-     +(up?'<label>Display name (optional)<input id="ac-d" type="text" maxlength="30"></label>':'')
+     +'<form id="ac-form" class="ac-form" novalidate><label>Email<input id="ac-e" type="email" autocomplete="email" maxlength="120" placeholder="you@example.com"></label>'
+     +(up?'<label>Display name<input id="ac-d" type="text" maxlength="30"></label>':'')
      +'<label>Password<input id="ac-p" type="password" autocomplete="'+(up?'new-password':'current-password')+'"></label>'
      +(up?'<label>Confirm password<input id="ac-p2" type="password" autocomplete="new-password"></label>':'')
      +capHTML('acct')+'<p class="err" id="ac-msg" role="alert">'+esc(AC.msg)+'</p><button class="btn btn-g" type="submit">'+(up?'Create account':'Sign in')+'</button></form>'
-     +'<p class="ak-note">Accounts live in this browser only. They are not sent anywhere, so they do not follow you to another device, and a forgotten password cannot be recovered.</p></section>';
+     +'<p class="ak-note">Your account is stored securely online. Your password is never shown to anyone, not even the site owner.</p></section>';
   }
   return h+'</div>';
 }
 function acMsg(t){AC.msg=t;var m=document.getElementById('ac-msg');if(m)m.textContent=t}
+function sbErr(e){var m=String((e&&e.message)||'');if(/invalid login/i.test(m))return 'Wrong email or password.';if(/already registered|already been registered/i.test(m))return 'That email already has an account. Try signing in.';if(/rate limit/i.test(m))return 'Too many tries. Wait a little and try again.';if(/password/i.test(m)&&/least/i.test(m))return 'Choose a longer password.';if(/email not confirmed/i.test(m))return 'Please confirm your email first. Check your inbox.';return m||'Something went wrong. Try again.'}
 document.addEventListener('submit',function(ev){
   var f=ev.target;if(!f||!f.id||f.id.indexOf('ac-')!==0)return;ev.preventDefault();
-  var U=getUsers(),pw,name;
+  var sb=window.__sb;if(!sb)return acMsg('Accounts are not available right now. Check your connection and reload.');
   if(f.id==='ac-form'){
     if(AC.busy)return;
-    name=(document.getElementById('ac-u').value||'').trim().toLowerCase();pw=document.getElementById('ac-p').value;
-    if(!/^[a-z0-9_]{3,20}$/.test(name))return acMsg('Usernames are 3 to 20 letters, numbers or underscores.');
-    var em=(document.getElementById('ac-e').value||'').trim().toLowerCase();
+    var em=(document.getElementById('ac-e').value||'').trim().toLowerCase(),pw=document.getElementById('ac-p').value;
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em))return acMsg('Enter an email in the form name@example.com.');
     if(pw.length<6)return acMsg('Passwords need at least 6 characters.');
     if(!capCheck('acct'))return acMsg('The security code is not right. Try the new one.');
     AC.busy=true;
     if(AC.mode==='up'){
-      if(U[name]){AC.busy=false;return acMsg('That username is taken. Try another.')}
-      if(Object.keys(U).some(function(k){return (U[k].email||'')===em})){AC.busy=false;return acMsg('That email already has an account.')}
+      var dn=(document.getElementById('ac-d').value||'').trim().slice(0,30);
+      if(!dn){AC.busy=false;return acMsg('Choose a display name.')}
       if(pw!==document.getElementById('ac-p2').value){AC.busy=false;return acMsg('The two passwords do not match.')}
-      var salt;try{salt=newSalt()}catch(e){AC.busy=false;return acMsg('Accounts are not available in this browser.')}
-      hashPw(pw,salt).then(function(hh){
-        var dn=(document.getElementById('ac-d').value||'').trim();
-        U[name]={name:name,email:em,display:dn||name,salt:salt,hash:hh,created:Date.now(),color:AV_COLORS[Math.floor(Math.random()*AV_COLORS.length)]};
-        if(!putUsers(U)){AC.busy=false;return acMsg('Could not save the account (browser storage is off).')}
-        AC.busy=false;AC.msg='';setSession(name);render();acctChip();toast('Welcome, '+(dn||name)+'!');
-      },function(){AC.busy=false;acMsg('Accounts are not available in this browser.')});
-    }else{
-      var us=U[name];
-      if(!us||(us.email&&us.email!==em)){AC.busy=false;return acMsg('Wrong username, email or password.')}
-      hashPw(pw,us.salt).then(function(hh){
+      sb.auth.signUp({email:em,password:pw,options:{data:{name:dn}}}).then(function(r){
         AC.busy=false;
-        if(hh!==us.hash)return acMsg('Wrong username or password.');
-        AC.msg='';setSession(name);render();acctChip();toast('Signed in as '+(us.display||name));
-      },function(){AC.busy=false;acMsg('Accounts are not available in this browser.')});
+        if(r.error)return acMsg(sbErr(r.error));
+        if(r.data&&r.data.session){location.hash='#account';location.reload();return}
+        acMsg('Almost done. Check your email and open the link to confirm your account, then sign in.');
+      },function(e){AC.busy=false;acMsg(sbErr(e))});
+    }else{
+      sb.auth.signInWithPassword({email:em,password:pw}).then(function(r){
+        AC.busy=false;
+        if(r.error)return acMsg(sbErr(r.error));
+        location.hash='#account';location.reload();
+      },function(e){AC.busy=false;acMsg(sbErr(e))});
     }
   }else if(f.id==='ac-prof'){
-    var cu=U[SESS];if(!cu)return;var pe=(document.getElementById('ac-pe').value||'').trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(pe))return acMsg('Enter an email in the form name@example.com.');cu.email=pe;cu.display=(document.getElementById('ac-dn').value||'').trim()||cu.name;putUsers(U);acctChip();render(true);toast('Profile saved');
+    var nn=(document.getElementById('ac-dn').value||'').trim().slice(0,30);if(!nn)return acMsg('Choose a display name.');
+    sb.auth.updateUser({data:{name:nn}}).then(function(r){
+      if(r.error)return acMsg(sbErr(r.error));
+      return sb.from('profiles').update({name:nn}).eq('id',SESS).then(function(){acMsg('');acctChip();render(true);toast('Profile saved')});
+    },function(e){acMsg(sbErr(e))});
   }else if(f.id==='ac-pw'){
-    var c2=U[SESS],o=document.getElementById('ac-old').value,n=document.getElementById('ac-new').value;if(!c2)return;
+    var n=document.getElementById('ac-new').value;
     if(n.length<6)return acMsg('The new password needs at least 6 characters.');
-    hashPw(o,c2.salt).then(function(hh){
-      if(hh!==c2.hash)return acMsg('The current password is not right.');
-      var s2;try{s2=newSalt()}catch(e){return}
-      return hashPw(n,s2).then(function(h2){c2.salt=s2;c2.hash=h2;putUsers(U);acMsg('');document.getElementById('ac-old').value='';document.getElementById('ac-new').value='';toast('Password changed')});
-    },function(){acMsg('Accounts are not available in this browser.')});
+    sb.auth.updateUser({password:n}).then(function(r){
+      if(r.error)return acMsg(sbErr(r.error));
+      acMsg('');document.getElementById('ac-new').value='';toast('Password changed');
+    },function(e){acMsg(sbErr(e))});
   }
 });
 document.addEventListener('click',function(ev){
-  var b=ev.target.closest&&ev.target.closest('[data-ac]');if(!b)return;var a=b.getAttribute('data-ac'),p=a.split(':'),U;
+  var b=ev.target.closest&&ev.target.closest('[data-ac]');if(!b)return;var a=b.getAttribute('data-ac'),p=a.split(':'),sb=window.__sb;
   if(p[0]==='mode'){AC.mode=p[1];AC.msg='';render(true)}
-  else if(p[0]==='out'){AC.mode='in';setSession('');render();acctChip();toast('Signed out')}
-  else if(p[0]==='col'){U=getUsers();if(U[SESS]){U[SESS].color=p[1];putUsers(U);acctChip();render(true)}}
+  else if(p[0]==='out'){if(sb)sb.auth.signOut().then(function(){location.hash='#account';location.reload()},function(){location.reload()})}
+  else if(p[0]==='col'){try{localStorage.setItem('ges-color:'+SESS,p[1])}catch(e){}acctChip();render(true)}
   else if(p[0]==='del'){
     if(!b.getAttribute('data-sure')){b.setAttribute('data-sure','1');b.textContent='Really delete? Press again';setTimeout(function(){b.removeAttribute('data-sure');b.textContent='Delete account'},4000);return}
-    U=getUsers();var gone=SESS;delete U[gone];putUsers(U);
-    try{['ges-docs','ges-doc-cur','ges-settings'].forEach(function(k){localStorage.removeItem(k+':'+gone)})}catch(e){}
-    AC.mode='in';setSession('');render();acctChip();toast('Account deleted');
+    if(!sb)return;
+    sb.rpc('delete_my_account').then(function(r){
+      if(r.error)return acMsg(sbErr(r.error));
+      try{['ges-docs','ges-doc-cur','ges-settings'].forEach(function(k){localStorage.removeItem(k+':'+SESS)})}catch(e){}
+      return sb.auth.signOut().then(function(){location.hash='#home';location.reload()});
+    });
   }
 });
 roleInit();
-if(SESS){if(getUsers()[SESS])loadUserSettings();else{SESS='';try{localStorage.removeItem('ges-session')}catch(e){}}}
+if(SESS)loadUserSettings();
 function saveSettings(){try{localStorage.setItem(ukey('ges-settings'),JSON.stringify(settings))}catch(e){}}
 function applySettings(){
   var r=document.documentElement;
@@ -4921,7 +5081,7 @@ window.addEventListener('hashchange',function(){
 
 /* ---------- events ---------- */
 function copyAddr(){
-  var el=$('#addr'),txt='orcaleok@gmail.com';
+  var el=$('#addr'),txt='';
   function sel(){if(!el)return;var r=document.createRange();r.selectNodeContents(el);var s=window.getSelection();s.removeAllRanges();s.addRange(r);toast('Address selected. Copy it with your keyboard.')}
   try{navigator.clipboard.writeText(txt).then(function(){toast('Address copied')},sel)}catch(e){sel()}
 }
@@ -4992,6 +5152,7 @@ document.addEventListener('submit',function(ev){
 
 applySettings();
 render();
+acctChip();
 })();
 </script>
 
