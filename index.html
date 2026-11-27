@@ -973,7 +973,7 @@ body.fs-lock{overflow:hidden}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>(function(){
-var URL_='https://skhlptvlnqogtyzulxdn.supabase.co',KEY='sb_publishable_MAzs9pG9jYI7-oeCAXRzeA_XBisDwRL';
+var URL_='https://skhlptvlnqogtyzulxdn.supabase.co',KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNraGxwdHZsbnFvZ3R5enVseGRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU2MTY0MDMsImV4cCI6MjExMTE5MjQwM30.OGQuDwZMDTsPsggz4W9z1jd4DgOhI0emDOCawa2khzs';
 var sb=null;try{if(window.supabase&&window.supabase.createClient)sb=window.supabase.createClient(URL_,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}})}catch(e){sb=null}
 window.__sb=sb;
 var me=null,admin=false,ready=null;
@@ -2408,6 +2408,7 @@ function updAnn(){
 }
 function offView(){return '<div class="wrap"><div class="empty" style="margin-top:40px"><h3>This section is switched off</h3><p>An admin has turned it off for now. Check back soon.</p><a class="btn btn-g" href="#home">Back to Home</a></div></div>'}
 var rlRaf=0;
+function formDirty(){var l=document.querySelectorAll('#app input[type=text],#app input[type=email],#app input[type=password],#app textarea');for(var i=0;i<l.length;i++)if(l[i].value)return true;return false}
 function roleChanged(){
   inboxSub();applyFeatures();updAnn();applySite();btnBadge();acctChip();adFill();
   var ids={};Object.keys(ROLE.admins).forEach(function(i){ids[i]=1});Object.keys(ROLE.members).forEach(function(i){ids[i]=1});ROLE.posts.forEach(function(p){if(p.by)ids[p.by]=1});
@@ -2416,7 +2417,7 @@ function roleChanged(){
     if(rlRaf)return;rlRaf=requestAnimationFrame(function(){rlRaf=0;
       var n=parse(state.hash).name,ae=document.activeElement,typing=ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA')&&document.getElementById('app').contains(ae);
       var pc=ROLE.pgChg&&(n==='home'||n==='about'||n==='other');ROLE.pgChg=false;if(n==='funcast'||n==='fcep'||n==='fcshow'||n==='funcast-studio'){fcRefresh();return}
-      if((pc||n==='news'||n==='chat'||n==='contact'||n==='admin'||n==='account'||n==='shop'||n==='cat'||n==='other')&&!typing&&!settings.work&&!settings.kids)render(true);
+      if((pc||n==='news'||n==='chat'||n==='contact'||n==='admin'||n==='account'||n==='shop'||n==='cat'||n==='other')&&!typing&&!(((n==='account'||n==='contact'||n==='chat')&&formDirty()))&&!settings.work&&!settings.kids)render(true);
     });
   }
 }
@@ -2985,7 +2986,7 @@ function accountView(){
   return h+'</div>';
 }
 function acMsg(t){AC.msg=t;var m=document.getElementById('ac-msg');if(m)m.textContent=t}
-function sbErr(e){var m=String((e&&e.message)||'');if(/invalid login/i.test(m))return 'Wrong email or password.';if(/already registered|already been registered/i.test(m))return 'That email already has an account. Try signing in.';if(/rate limit/i.test(m))return 'Too many tries. Wait a little and try again.';if(/password/i.test(m)&&/least/i.test(m))return 'Choose a longer password.';if(/email not confirmed/i.test(m))return 'Please confirm your email first. Check your inbox.';return m||'Something went wrong. Try again.'}
+function sbErr(e){var m=String((e&&e.message)||'');if(/invalid login/i.test(m))return 'Wrong email or password.';if(/already registered|already been registered/i.test(m))return 'That email already has an account. Try signing in.';if(/rate limit/i.test(m))return 'The site could not send the confirmation email right now. Try again later.';if(/not authorized|not allowed/i.test(m))return 'The site could not send a confirmation email to that address yet. The site owner needs to finish email setup.';if(/password/i.test(m)&&/least/i.test(m))return 'Choose a longer password.';if(/email not confirmed/i.test(m))return 'Please confirm your email first. Check your inbox.';return m||'Something went wrong. Try again.'}
 document.addEventListener('submit',function(ev){
   var f=ev.target;if(!f||!f.id||f.id.indexOf('ac-')!==0)return;ev.preventDefault();
   var sb=window.__sb;if(!sb)return acMsg('Accounts are not available right now. Check your connection and reload.');
@@ -3004,7 +3005,10 @@ document.addEventListener('submit',function(ev){
         AC.busy=false;
         if(r.error)return acMsg(sbErr(r.error));
         if(r.data&&r.data.session){location.hash='#account';location.reload();return}
-        acMsg('Almost done. Check your email and open the link to confirm your account, then sign in.');
+        return sb.auth.signInWithPassword({email:em,password:pw}).then(function(r2){
+          if(!r2.error){location.hash='#account';location.reload();return}
+          acMsg('Almost done. Check your email and open the link to confirm your account, then sign in.');
+        });
       },function(e){AC.busy=false;acMsg(sbErr(e))});
     }else{
       sb.auth.signInWithPassword({email:em,password:pw}).then(function(r){
